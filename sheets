@@ -1,0 +1,86 @@
+function extractDataAndCreateDocument() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var sheets = spreadsheet.getSheets();
+
+  // Create a new Google Document
+  var masterDocument = DocumentApp.create("Weekly Review and Achievements - Master");
+  var masterDocumentId = masterDocument.getId();
+
+  // Access the body of the master document
+  var masterBody = DocumentApp.openById(masterDocumentId).getBody();
+
+  // Loop through each sheet
+  sheets.forEach(function(sheet) {
+    var sheetName = sheet.getName();
+
+    // Find the column with the header "Weekly Observations WB 05/01"
+    var headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var columnIndex = headerRow.indexOf("Weekly Observations WB 05/01");
+
+    if (columnIndex !== -1) {
+      var columnData = sheet.getRange(2, columnIndex + 1, sheet.getLastRow() - 1, 1).getValues().flat().join("\n");
+
+      // Add the header for each sheet
+      masterBody.appendParagraph("Data for: ").setBold(true).setFontSize(14).setSpacingAfter(12);
+      masterBody.appendParagraph(sheetName).setFontSize(14).setSpacingAfter(12);
+      masterBody.appendParagraph("Here is the value gathered for this week: ").setBold(true).setFontSize(14).setSpacingAfter(12);
+      masterBody.appendParagraph(columnData).setFontSize(14).setFontFamily("Times New Roman").setSpacingAfter(12);
+      
+      // Add a page break after each sheet's data
+      masterBody.appendPageBreak();
+    } else {
+      Logger.log("Header not found on sheet: " + sheetName);
+    }
+  });
+
+  // Remove the last page break as it creates an empty page at the end
+  var lastChild = masterBody.getChild(masterBody.getNumChildren() - 1);
+  if (lastChild.getType() == DocumentApp.ElementType.PAGE_BREAK) {
+    lastChild.removeFromParent();
+  }
+
+  // Add your logo to the master document (replace 'YOUR_LOGO_URL' with the actual URL of your logo image)
+  var logoUrl = 'https://drive.google.com/file/d/1cxBS_7mhPp46mYeI6RJCfYVqU602a1cp/view?usp=drive_link';
+  try {
+    var imageBlob = UrlFetchApp.fetch(logoUrl).getBlob();
+    masterBody.insertImage(0, imageBlob);
+  } catch (e) {
+    Logger.log("Error fetching or inserting image: " + e);
+  }
+
+  // Save and close the master document
+  masterDocument.saveAndClose();
+
+  // Open the master document in a new tab
+  var masterDocumentUrl = "https://docs.google.com/document/d/" + masterDocumentId + "/edit";
+  var ui = SpreadsheetApp.getUi();
+  ui.alert('Document Created', 'The master document has been created. Click OK to open it in a new tab.', ui.ButtonSet.OK);
+  openUrlInNewTab(masterDocumentUrl);
+
+  // Send the master document as a PDF to specified email recipients
+  var masterPdfBlob = DriveApp.getFileById(masterDocumentId).getAs('application/pdf');
+  var recipients = ['rahul.talele@vunetsystems.com', 'recipient2@example.com']; // Add your email recipients
+
+  // Send email with PDF attachment
+  MailApp.sendEmail({
+    to: recipients.join(","),
+    subject: "Weekly Review and Achievements",
+    body: "Please find the attached Weekly Review and Achievements master document.",
+    attachments: [masterPdfBlob]
+  });
+}
+
+// Function to open a URL in a new tab
+function openUrlInNewTab(url) {
+  var html = "<script>window.open('" + url + "','_blank');</script>";
+  var ui = HtmlService.createHtmlOutput(html);
+  SpreadsheetApp.getUi().showModalDialog(ui, 'Opening Master Document');
+}
+
+// Add a custom menu to the spreadsheet
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('Custom Menu')
+    .addItem('Extract Data and Create Master Document', 'extractDataAndCreateDocument')
+    .addToUi();
+}
